@@ -1,6 +1,6 @@
 # dataset settings
 dataset_type = 'ADE20KDataset'
-data_root = 'data/ade/ADEChallengeData2016'
+data_root = '../data/ade/ADEChallengeData2016'
 crop_size = (512, 512)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -48,5 +48,5 @@ val_dataloader = dict(
         pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
+val_evaluator = [dict(type='IoUMetric', iou_metrics=['mIoU'])]
 test_evaluator = val_evaluator
