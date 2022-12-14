@@ -29,11 +29,10 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-
 def main():
     args = parse_args()
     register_all_modules()
-    cfg = Config.fromfile(args.config)
+
     timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     if args.work_dir is not None:
         mkdir_or_exist(osp.abspath(args.work_dir))
@@ -46,11 +45,26 @@ def main():
         json_file = osp.join(work_dir, f'fps_{timestamp}.json')
 
     repeat_times = args.repeat_times
+    benchmark_dict = benchmark(
+        args.config,
+        repeat_times,
+        checkpoint=args.get('checkpoint', None),
+        log_interval=args.log_interval
+    )
+    print(f'Average fps of {repeat_times} evaluations: '
+          f'{benchmark_dict["average_fps"]}')
+    print(f'The variance of {repeat_times} evaluations: '
+          f'{benchmark_dict["fps_variance"]}')
+    dump(benchmark_dict, json_file, indent=4)
+
+
+def benchmark(config, repeat_times=1, checkpoint=None, log_interval=50, n_images=200):
+    cfg = Config.fromfile(config)
     # set cudnn_benchmark
     torch.backends.cudnn.benchmark = False
     cfg.model.pretrained = None
 
-    benchmark_dict = dict(config=args.config, unit='img / s')
+    benchmark_dict = dict(config=config, unit='img / s')
     overall_fps_list = []
     cfg.test_dataloader.batch_size = 1
     for time_index in range(repeat_times):
@@ -62,8 +76,8 @@ def main():
         cfg.model.train_cfg = None
         model = MODELS.build(cfg.model)
 
-        if 'checkpoint' in args and osp.exists(args.checkpoint):
-            load_checkpoint(model, args.checkpoint, map_location='cpu')
+        if checkpoint is not None and osp.exists(checkpoint):
+            load_checkpoint(model, checkpoint, map_location='cpu')
 
         if torch.cuda.is_available():
             model = model.cuda()
@@ -75,7 +89,7 @@ def main():
         # the first several iterations may be very slow so skip them
         num_warmup = 5
         pure_inf_time = 0
-        total_iters = 200
+        total_iters = n_images
 
         # benchmark with 200 batches and take the average
         for i, data in enumerate(data_loader):
@@ -95,7 +109,7 @@ def main():
 
             if i >= num_warmup:
                 pure_inf_time += elapsed
-                if (i + 1) % args.log_interval == 0:
+                if (i + 1) % log_interval == 0:
                     fps = (i + 1 - num_warmup) / pure_inf_time
                     print(f'Done image [{i + 1:<3}/ {total_iters}], '
                           f'fps: {fps:.2f} img / s')
@@ -108,11 +122,8 @@ def main():
                 break
     benchmark_dict['average_fps'] = round(np.mean(overall_fps_list), 2)
     benchmark_dict['fps_variance'] = round(np.var(overall_fps_list), 4)
-    print(f'Average fps of {repeat_times} evaluations: '
-          f'{benchmark_dict["average_fps"]}')
-    print(f'The variance of {repeat_times} evaluations: '
-          f'{benchmark_dict["fps_variance"]}')
-    dump(benchmark_dict, json_file, indent=4)
+    return benchmark_dict
+
 
 
 if __name__ == '__main__':
