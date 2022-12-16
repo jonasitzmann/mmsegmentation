@@ -120,3 +120,4 @@ mmseg/.mim
 *.pth
 inference_results/
 demo/
+downloaded_ckpts/
