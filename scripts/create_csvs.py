@@ -2,39 +2,29 @@ import yaml
 from glob import glob
 import pandas as pd
 from dotdict import dotdict
-import matplotlib.pyplot as plt
-plt.style.use('seaborn')
 import os
-import numpy as np
+
 
 def main():
+    csv_dir = 'tables/from_mmseg'
+    groups = create_csvs(csv_dir)
+
+
+def create_csvs(csv_dir):
     yaml_files = glob('configs/**/*.yml')
     res_list = []
     for f in list(yaml_files):
         res_list += extract_results(f)
     df = pd.DataFrame([dict(r) for r in res_list])
     df = df.sort_values(by='fps', ascending=False)
-    filtered = df[(df['dataset'] == 'ADE20K') & (df['resolution'] == '(512,512)')]
-    # filtered = df[(df['dataset'] == 'ADE20K') & (df['resolution'] == '(640,640)')]
-    # filtered = df[(df['dataset'] == 'Cityscapes') & (df['resolution'] == '(512,1024)')]
-    filtered['is_best'] = False
-    best_mIoU = 0
-    for i, mIoU in enumerate(filtered.mIoU):
-        if mIoU > best_mIoU:
-            filtered['is_best'].iloc[i] = True
-            best_mIoU = mIoU
-
-    fig, ax = plt.subplots()
-    for method, sub_df in filtered.groupby('method'):
-        plot_kw = dotdict()
-        if any(sub_df.is_best):
-        # if method == 'hrnet':
-            plot_kw.label = method
-        else:
-            plot_kw.color = 'gray'
-        ax.plot(sub_df.fps, sub_df.mIoU, **plot_kw)
-    plt.legend()
-    plt.show()
+    os.makedirs(csv_dir, exist_ok=True)
+    df.to_csv(f'{csv_dir}/all.csv', index=False)
+    groups = {k: v for k, v in df.groupby(['dataset', 'resolution'])}
+    for (ds, res), group in groups.items():
+        ds_dir = f'{csv_dir}/{ds}'
+        os.makedirs(ds_dir, exist_ok=True)
+        group.to_csv(f'{csv_dir}/{ds}/{res}.csv', index=False)
+    return groups
 
 
 def extract_results(yaml_file):

@@ -1,0 +1,4 @@
+name,method,config,weights,fps,resolution,hardware,dataset,mIoU
+SETR_ViT-L,setr,configs/setr/setr_vit-l_mla_8xb1-80k_cityscapes-768x768.py,https://download.openmmlab.com/mmsegmentation/v0.5/setr/setr_mla_vit-large_8x1_768x768_80k_cityscapes/setr_mla_vit-large_8x1_768x768_80k_cityscapes_20211119_101003-7f8dccbe.pth,0.4100007380013284,"(768,768)",V100,Cityscapes,77.0
+SETR_ViT-L,setr,configs/setr/setr_vit-l_naive_8xb1-80k_cityscapes-768x768.py,https://download.openmmlab.com/mmsegmentation/v0.5/setr/setr_naive_vit-large_8x1_768x768_80k_cityscapes/setr_naive_vit-large_8x1_768x768_80k_cityscapes_20211123_000505-20728e80.pth,0.39000039000039,"(768,768)",V100,Cityscapes,78.1
+SETR_ViT-L,setr,configs/setr/setr_vit-l_pup_8xb1-80k_cityscapes-768x768.py,https://download.openmmlab.com/mmsegmentation/v0.5/setr/setr_pup_vit-large_8x1_768x768_80k_cityscapes/setr_pup_vit-large_8x1_768x768_80k_cityscapes_20211122_155115-f6f37b8f.pth,0.37000037000037,"(768,768)",V100,Cityscapes,79.21

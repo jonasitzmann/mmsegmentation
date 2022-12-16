@@ -58,7 +58,7 @@ def main():
     dump(benchmark_dict, json_file, indent=4)
 
 
-def benchmark(config, repeat_times=1, checkpoint=None, log_interval=50, n_images=200):
+def benchmark(config, repeat_times=1, checkpoint=None, log_interval=50, n_images=200, n_warmup=5):
     cfg = Config.fromfile(config)
     # set cudnn_benchmark
     torch.backends.cudnn.benchmark = False
@@ -87,7 +87,7 @@ def benchmark(config, repeat_times=1, checkpoint=None, log_interval=50, n_images
         model.eval()
 
         # the first several iterations may be very slow so skip them
-        num_warmup = 5
+        num_warmup = n_warmup
         pure_inf_time = 0
         total_iters = n_images
 
