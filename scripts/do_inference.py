@@ -12,6 +12,7 @@ from tools.analysis_tools.get_flops import get_model_complexity_info
 from mmseg.utils import register_all_modules
 from scripts.get_checkpoint import get_checkpoint
 from argparse import ArgumentParser
+from mmcv.transforms import CenterCrop
 
 
 def main():
@@ -30,12 +31,31 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
     cfg = Config.fromfile(config_path)
     if n_images_total:  # if not specified use entire dataset
         cfg['test_dataloader']['dataset']['indices'] = n_images_total
-    cfg['visualizer']['vis_backends'][0]['init_kwargs']['project'] = 'mmseg_inference'
+    cfg['visualizer']['vis_backends'] = [
+        dict(
+        type='WandbVisBackend',
+        init_kwargs=dict(entity='js0', project='mmseg_inference', reinit=True),
+        watch_kwargs=dict(log_graph=True, log_freq=1),
+    )]
     cfg.work_dir = 'inference_results'
     cfg.load_from = ckpt
     runner = Runner.from_cfg(cfg)
     runner.model.eval()
-    flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False)
+    runner.test_dataloader.dataset.pipeline.transforms.insert(2, CenterCrop(crop_size=(512, 512)))
+
+    def input_ctor(*args, **kwargs):
+        batch = next(iter(runner.test_dataloader))  # train_dataloader uses crops with correct size
+        batch = runner.model.data_preprocessor(batch)
+        metainfo = batch['data_samples'][0].metainfo
+        metainfo['batch_input_shape'] = metainfo['img_shape']
+        batch['data_samples'][0].set_metainfo(metainfo)
+        method = config_path.split('/')[-2]
+        if method not in 'maskformer mask2former'.split():
+            batch['data_samples'] = None
+        return batch
+
+    flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False, input_constructor=input_ctor)
+    runner = Runner.from_cfg(cfg)
     benchmark_metrics = benchmark(config_path, repeat_times=repeat_times, n_images=n_images_benchmark, n_warmup=n_warmup)
     metrics = runner.test()
     results = dict(
@@ -53,8 +73,6 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
     filename = f'{save_dir}/{osp.basename(config_path)}.csv'
     df.to_csv(filename, index=False)
     print(f'{filename=}')
-
-
 
 
 if __name__ == '__main__':

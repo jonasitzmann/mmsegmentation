@@ -3,9 +3,10 @@
 #SBATCH --gres=gpu:1080:1
 #SBATCH --out=log/%A_%a.out
 #SBATCH --time=20:00
-#SBATCH --array=0-5
+#SBATCH --array=0-1
 
-method_names=(knet mask2former maskformer mobilenet_v2 sem_fpn segformer)
+#method_names=(knet mask2former maskformer mobilenet_v2 sem_fpn segformer)
+method_names=(mask2former maskformer)
 method_name=${method_names[${SLURM_ARRAY_TASK_ID}]}
 dataset=ADE20K
 resolution=(512 512)

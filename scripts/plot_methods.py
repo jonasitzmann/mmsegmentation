@@ -5,6 +5,7 @@ plt.style.use('seaborn')
 import pandas as pd
 from dotdict import dotdict
 from glob import glob
+import numpy as np
 
 
 def main():
@@ -43,32 +44,41 @@ def plot_miou_over_fps(df_mmseg):
     # ax2.set_xlabel('fps (reproduced)')
     for method, sub_df in df_mmseg.groupby('method'):
         is_reproduced = 'fps_reproduced' in sub_df.columns and len(sub_df.fps_reproduced.dropna()) > 0
-        plot_kw = dotdict(marker='o', ms=4)
+        plot_kw = dotdict(marker='X', ms=4)
         if is_reproduced:
             plot_kw.zorder = 10
             plot_kw.lw = 2
-            plot_kw.ms = 7
+            plot_kw.ms = 6
         else:
             plot_kw.lw = 1.5
 
         if any(sub_df.is_best):
             plot_kw.label = method
-            plot_kw.alpha=0.7
+            plot_kw.alpha=0.6
         else:
             plot_kw.color = 'gray'
             plot_kw.alpha=0.3
         plot_kw.color = ax.plot(sub_df.fps, sub_df.mIoU, **{**plot_kw, **(dict(label=None)if is_reproduced else {})})[0]._color
         if is_reproduced:
-            ax.plot(sub_df.fps_reproduced, sub_df.mIoU_reproduced, **{**plot_kw, 'alpha': 1, 'lw': 3})
-            for i, row in sub_df.dropna(axis=0).iterrows():
-                plt.plot(
-                    [row.fps, row.fps_reproduced],
-                    [row.mIoU, row.mIoU_reproduced],
-                    color=plot_kw.color,
-                    ls='dotted',
-                    alpha=plot_kw.alpha,
-                    zorder=5
-                )
+            # if method == 'segformer':
+            #     print(sub_df.params_reproduced / 1e6)
+                plot_kw.marker='o'
+                plot_kw.ms=8
+                ms = sub_df.params_reproduced.apply(lambda x: x / 100_000)
+                ms = sub_df.flops_reproduced.apply(lambda x: x / 1000_000_000)
+                ax.plot(sub_df.fps_reproduced, sub_df.mIoU_reproduced, **{**plot_kw, 'alpha': 1, 'lw': 3,
+                                                                          # 'ms': 0
+                                                                          })
+                # ax.scatter(sub_df.fps_reproduced, sub_df.mIoU_reproduced, s=ms)
+                for i, row in sub_df.dropna(axis=0).iterrows():
+                    plt.plot(
+                        [row.fps, row.fps_reproduced],
+                        [row.mIoU, row.mIoU_reproduced],
+                        color=plot_kw.color,
+                        ls='dotted',
+                        alpha=plot_kw.alpha,
+                        zorder=5
+                    )
 
 
     ax.set_xlabel('fps')

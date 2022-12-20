@@ -233,8 +233,12 @@ class EncoderDecoder(BaseSegmentor):
         Returns:
             Tensor: Forward output of model without any post-processes.
         """
-        x = self.extract_feat(inputs)
-        return self.decode_head.forward(x)
+        if data_samples is not None:  # todo: to fix maskformer and mask2former
+            x = self.extract_feat(inputs)
+            return self.decode_head.forward(x, data_samples)
+        else:
+            x = self.extract_feat(inputs)
+            return self.decode_head.forward(x)
 
     def slide_inference(self, inputs: Tensor,
                         batch_img_metas: List[dict]) -> Tensor:
