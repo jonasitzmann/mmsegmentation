@@ -18,8 +18,9 @@ from mmcv.transforms import CenterCrop
 def main():
     parser = ArgumentParser()
     parser.add_argument('--config')
+    parser.add_argument('--no_ckpt', action='store_true')
     args = parser.parse_args()
-    do_inference(args.config)
+    do_inference(args.config, not args.no_ckpt)
 
 
 def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
