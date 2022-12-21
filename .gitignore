@@ -121,3 +121,4 @@ mmseg/.mim
 inference_results/
 demo/
 downloaded_ckpts/
+tables/reproduced_debug/
