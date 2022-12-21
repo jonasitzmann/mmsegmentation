@@ -1,4 +1,3 @@
-import argparse
 import os
 import os.path as osp
 import pandas as pd
@@ -42,8 +41,6 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
     cfg.load_from = ckpt
     runner = Runner.from_cfg(cfg)
     runner.model.eval()
-    runner.test_dataloader.dataset.pipeline.transforms.insert(2, CenterCrop(crop_size=(512, 512)))
-
     def input_ctor(*args, **kwargs):
         batch = next(iter(runner.test_dataloader))  # train_dataloader uses crops with correct size
         batch = runner.model.data_preprocessor(batch)
@@ -55,6 +52,7 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
             batch['data_samples'] = None
         return batch
 
+    runner.test_dataloader.dataset.pipeline.transforms.insert(2, CenterCrop(crop_size=(512, 512)))
     flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False, input_constructor=input_ctor)
     runner = Runner.from_cfg(cfg)
     benchmark_metrics = benchmark(config_path, repeat_times=repeat_times, n_images=n_images_benchmark, n_warmup=n_warmup)

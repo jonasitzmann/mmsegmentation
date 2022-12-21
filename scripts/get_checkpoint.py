@@ -1,6 +1,8 @@
 import pandas as pd
 import os
+from my_utils.fix_wget import fix_wget
 import wget
+fix_wget()
 
 
 def get_checkpoint(config_path):
