@@ -122,3 +122,5 @@ inference_results/
 demo/
 downloaded_ckpts/
 tables/reproduced_debug/
+wandb
+log
