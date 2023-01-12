@@ -46,8 +46,7 @@ def plot_miou_over_fps(df_mmseg, plot_name):
         is_reported = 'fps' in sub_df.columns and len(sub_df.fps.dropna()) > 0
         is_intesting = any([
             method in '''
-                segnext
-                segformer
+                deeplabv3
             '''.split(),
             # any(sub_df.is_best),
             # is_reproduced,
@@ -91,7 +90,7 @@ def plot_miou_over_fps(df_mmseg, plot_name):
     ax.set_ylabel('mIoU')
     plt.legend()
     plt.tight_layout()
-    ax.set_ylim(bottom=20)
+    # ax.set_ylim(bottom=20)
     # ax.set_xlim(right=250e9)
     plt.show()
 

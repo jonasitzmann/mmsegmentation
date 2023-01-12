@@ -31,8 +31,7 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(
-            img_path='images/training', seg_map_path='annotations/training'),
+        data_prefix=dict(img_path='images/training', seg_map_path='annotations/training'),
         pipeline=train_pipeline))
 val_dataloader = dict(
     batch_size=1,

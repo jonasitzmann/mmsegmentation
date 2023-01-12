@@ -7,7 +7,7 @@ model = dict(
     backbone=dict(
         embed_dims=[64, 128, 320, 512],
         depths=[2, 2, 4, 2],
-        # init_cfg=dict(type='Pretrained', checkpoint='pretrained/mscan_s.pth')
+        init_cfg=dict(type='Pretrained', checkpoint='pretrain/mscan_s.pth')
     ),
     decode_head=dict(
         in_channels=[128, 320, 512],

@@ -48,8 +48,9 @@ class MySegVisHook(Hook):
             if wandb:
                 wandb.experiment.log(outputs)
                 if runner.epoch == 0 and batch_idx == 0:
-                    torch.onnx.export(runner.model, data_batch['inputs'][0], 'model.onnx')
-                    wandb.save('model.onnx')
+                    batch = runner.model.data_preprocessor(data_batch, training=True)
+                    torch.onnx.export(runner.model, batch['inputs'], 'model.onnx')
+                    wandb.experiment.save('model.onnx')
                     print('saved model')
             return
         if self.file_client is None:

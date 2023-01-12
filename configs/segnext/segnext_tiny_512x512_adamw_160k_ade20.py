@@ -1,8 +1,8 @@
 _base_ = [
-    '../../_base_/models/segnext.py',
-    '../../_base_/default_runtime.py',
-    '../../_base_/datasets/ade20k.py',
-    '../../_base_/schedules/schedule_160k.py',
+    '../_base_/models/segnext.py',
+    '../_base_/default_runtime.py',
+    '../_base_/datasets/ade20k.py',
+    '../_base_/schedules/schedule_160k.py',
 ]
 find_unused_parameters = True
 # model settings
@@ -22,7 +22,8 @@ data_preprocessor = dict(
 model = dict(
     data_preprocessor=data_preprocessor,
     type='EncoderDecoder',
-    backbone=dict(init_cfg=dict(type='Pretrained', checkpoint='pretrain/mscan_t.pth')),
+    # backbone=dict(
+    #     init_cfg=dict(type='Pretrained', checkpoint='/notebooks/mscan_t.pth')),
     decode_head=dict(
         type='LightHamHead',
         in_channels=[64, 160, 256],
@@ -42,17 +43,18 @@ model = dict(
 
 # optimizer
 # 0.00006 is the lr for bs 16, should use 0.00006/8 as lr (need to test)
-optimizer = dict(_delete_=True, type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01,
-                 paramwise_cfg=dict(custom_keys={'pos_block': dict(decay_mult=0.),
-                                                 'norm': dict(decay_mult=0.),
-                                                 'head': dict(lr_mult=10.)
-                                                 }))
-
-lr_config = dict(_delete_=True, policy='poly',
-                 warmup='linear',
-                 warmup_iters=1500,
-                 warmup_ratio=1e-6,
-                 power=1.0, min_lr=0.0, by_epoch=False)
+optimizer = dict(
+    type='AdamW',
+    lr=0.00006,
+    betas=(0.9, 0.999),
+    weight_decay=0.01,
+    paramwise_cfg=dict(
+        custom_keys={
+            'pos_block': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.),
+            'head': dict(lr_mult=10.)
+        }))
 
 dataset_type = 'ADE20KDataset'
+# data_root = '/notebooks/ADEChallengeData2016'
 data_root = '../data/ade/ADEChallengeData2016'
