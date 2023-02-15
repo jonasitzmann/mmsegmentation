@@ -87,7 +87,7 @@ def main():
             cfg.optim_wrapper.loss_scale = 'dynamic'
 
     # resume training
-    cfg.resume = args.resume
+    cfg.resume = args.resume or getattr(cfg._cfg_dict, 'resume', False)
 
     # build the runner from config
     if 'runner_type' not in cfg:

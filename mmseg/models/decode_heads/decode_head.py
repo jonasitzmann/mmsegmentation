@@ -7,12 +7,16 @@ import torch
 import torch.nn as nn
 from mmengine.model import BaseModule
 from torch import Tensor
+import numpy as np
 
 from mmseg.structures import build_pixel_sampler
 from mmseg.utils import ConfigType, SampleList
 from ..builder import build_loss
 from ..losses import accuracy
 from ..utils import resize
+from hamming_code.encode import add_binary_encoding, decode_logits, get_encoding_conv, plot_enc_layer
+from mmseg.models.losses.cross_entropy_loss import cross_entropy
+import matplotlib.pyplot as plt
 
 
 class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
@@ -102,9 +106,27 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
                  sampler=None,
                  align_corners=False,
                  init_cfg=dict(
-                     type='Normal', std=0.01, override=dict(name='conv_seg'))):
+                     type='Normal', std=0.01, override=dict(name='conv_seg')),
+                 encode_labels=False,
+                 map_to_n_bits=None,
+                 encoding_conv_manual_weights=False,
+                 softmax_hardness=1,
+                 ):
         super().__init__(init_cfg)
         self._init_inputs(in_channels, in_index, input_transform)
+        self.encode_labels = encode_labels
+        if self.encode_labels:
+            self.num_classes_decoded = num_classes
+            if map_to_n_bits is None:
+                num_classes = int(np.ceil(np.log2(num_classes)))
+                out_channels = num_classes
+            if loss_decode['type'] == 'CrossEntropyLoss':
+                loss_decode.use_sigmoid = True
+            self.gt_key = 'gt_encoded'
+        else:
+            self.gt_key = 'gt_sem_seg'
+        self.num_classes = num_classes
+
         self.channels = channels
         self.dropout_ratio = dropout_ratio
         self.conv_cfg = conv_cfg
@@ -139,6 +161,9 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         self.out_channels = out_channels
         self.threshold = threshold
 
+
+
+
         if isinstance(loss_decode, dict):
             self.loss_decode = build_loss(loss_decode)
         elif isinstance(loss_decode, (list, tuple)):
@@ -153,12 +178,24 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             self.sampler = build_pixel_sampler(sampler, context=self)
         else:
             self.sampler = None
-
         self.conv_seg = nn.Conv2d(channels, self.out_channels, kernel_size=1)
+        self.binary_encoding_conv = None
+        self.output_layer_name = 'conv_seg'
+        if map_to_n_bits is not None:
+            self.softmax_hardness = softmax_hardness
+            self.output_layer_name = 'binary_encoding_conv'
+            self.binary_encoding_conv = nn.Conv2d(self.out_channels, map_to_n_bits, kernel_size=1)
+            if encoding_conv_manual_weights:
+                encoding_conv_manual = get_encoding_conv(self.out_channels)
+                self.binary_encoding_conv.weight.data = encoding_conv_manual.weight.data
+                self.binary_encoding_conv.bias.data = encoding_conv_manual.bias.data
+                self.binary_encoding_conv.requires_grad = True
+
         if dropout_ratio > 0:
             self.dropout = nn.Dropout2d(dropout_ratio)
         else:
             self.dropout = None
+
 
     def extra_repr(self):
         """Extra repr."""
@@ -242,6 +279,11 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         if self.dropout is not None:
             feat = self.dropout(feat)
         output = self.conv_seg(feat)
+        if self.binary_encoding_conv is not None:
+            output_onehot = torch.nn.functional.softmax(output * self.softmax_hardness)
+            output_enc = self.binary_encoding_conv(output_onehot)
+            # plot_enc_layer(output_onehot, output_enc)
+            return output_enc
         return output
 
     def loss(self, inputs: Tuple[Tensor], batch_data_samples: SampleList,
@@ -259,6 +301,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             dict[str, Tensor]: a dictionary of loss components
         """
         seg_logits = self.forward(inputs)
+        # print(f'{seg_logits.sum()=}')
         losses = self.loss_by_feat(seg_logits, batch_data_samples)
         return losses
 
@@ -279,12 +322,15 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             List[Tensor]: Outputs segmentation logits map.
         """
         seg_logits = self.forward(inputs)
-
+        if self.encode_labels:
+            seg_logits_decoded = decode_logits(seg_logits, self.num_classes_decoded)
+            return self.predict_by_feat(seg_logits_decoded, batch_img_metas)
         return self.predict_by_feat(seg_logits, batch_img_metas)
 
-    def _stack_batch_gt(self, batch_data_samples: SampleList) -> Tensor:
+    def _stack_batch_gt(self, batch_data_samples: SampleList, gt_key=None) -> Tensor:
+        gt_key = gt_key or self.gt_key
         gt_semantic_segs = [
-            data_sample.gt_sem_seg.data for data_sample in batch_data_samples
+            data_sample.get(gt_key).data for data_sample in batch_data_samples
         ]
         return torch.stack(gt_semantic_segs, dim=0)
 
@@ -307,34 +353,81 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         seg_logits = resize(
             input=seg_logits,
             size=seg_label.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
+            # mode='bilinear',
+            # align_corners=self.align_corners,
+            mode='nearest',
+            align_corners=None,
+        )
         if self.sampler is not None:
             seg_weight = self.sampler.sample(seg_logits, seg_label)
         else:
             seg_weight = None
         seg_label = seg_label.squeeze(1)
+        if self.encode_labels:  # in this case ignore_idx has no effect, so seg_weight is set to ignore samples
+            seg_label_decoded = self._stack_batch_gt(batch_data_samples, 'gt_sem_seg').squeeze(1)
+            seg_weight = seg_label_decoded != self.ignore_index
+            seg_weight = seg_weight.unsqueeze(1).expand_as(seg_logits)
 
         if not isinstance(self.loss_decode, nn.ModuleList):
             losses_decode = [self.loss_decode]
         else:
             losses_decode = self.loss_decode
+
         for loss_decode in losses_decode:
             if loss_decode.loss_name not in loss:
                 loss[loss_decode.loss_name] = loss_decode(
                     seg_logits,
                     seg_label,
                     weight=seg_weight,
-                    ignore_index=self.ignore_index)
+                    ignore_index=self.ignore_index
+                )
             else:
                 loss[loss_decode.loss_name] += loss_decode(
                     seg_logits,
                     seg_label,
                     weight=seg_weight,
                     ignore_index=self.ignore_index)
+        # loss = dict(loss_ce=loss_decode(seg_logits, seg_label, ignore_index=self.ignore_index, weight=seg_weight))
 
+        if self.encode_labels:
+            loss['acc_bit'] = ((seg_logits > 0) == seg_label).sum() / seg_logits.numel()
+            seg_logits_decoded = decode_logits(seg_logits, self.num_classes_decoded)
+            loss['ce_decoded'] = cross_entropy(seg_logits_decoded, seg_label_decoded, ignore_index=self.ignore_index)
+        #     valid_idxs = seg_weight[:, 0, :, :].nonzero()
+        #     # seen_labels = []
+        #     # for b, h, w in valid_idxs:
+        #     b, h, w = valid_idxs[0]
+        #     logits_sample = torch.tensor(seg_logits[b, :, h, w].detach(), requires_grad=True)
+        #     # logits_sample = seg_logits[b, :, h, w]
+        #     label_dec = torch.tensor(seg_label_decoded[b, h, w]).item()
+        #     # if not label_dec in seen_labels:
+        #     #     seen_labels.append(label_dec)
+        #     # else:
+        #     #     continue
+        #     label_enc = seg_label[b, :, h, w]
+        #     correct = seg_logits_decoded[b, :, h, w].argmax() == label_dec
+        #     sample_loss = loss_decode(logits_sample[None, :, None, None], label_enc[None, :, None, None])
+        #     sample_loss.backward()
+        #     xs = np.arange(logits_sample.shape[0])
+        #     ys = torch.sigmoid(logits_sample.detach().cpu())
+        #     ys_2 = torch.sigmoid(logits_sample.detach().cpu() - 10 * logits_sample.grad.cpu())
+        #     for i, (x, y1, y2) in enumerate(zip(xs, ys, ys_2)):
+        #         plt.arrow(x, y1, 0, y2-y1, head_width=0.1, color='black', head_length=0.02, width=0.02, length_includes_head=True, label=None if i else 'neg. gradient')
+        #     plt.scatter(xs, label_enc.cpu(), label='ground truth', alpha=1, s=100)
+        #     plt.scatter(xs, ys, s=100, label='prediction')
+        #     plt.axhline(0.5, 0, max(xs), color='gray')
+        #     plt.ylim(0, 1)
+        #     plt.suptitle(f'{sample_loss=:.4f}, {label_dec=}, {correct=}')
+        #     plt.legend()
+        #     plt.tight_layout()
+        #     plt.xticks(xs, (np.arange(len(xs))+1)[::-1])
+        #     plt.show()
+        #     self.zero_grad()
+
+        else:
+            seg_logits_decoded, seg_label_decoded = seg_logits, seg_label
         loss['acc_seg'] = accuracy(
-            seg_logits, seg_label, ignore_index=self.ignore_index)
+            seg_logits_decoded, seg_label_decoded, ignore_index=self.ignore_index)
         return loss
 
     def predict_by_feat(self, seg_logits: Tensor,
@@ -354,5 +447,8 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             input=seg_logits,
             size=batch_img_metas[0]['img_shape'],
             mode='bilinear',
-            align_corners=self.align_corners)
+            align_corners=self.align_corners,
+            # mode='nearest',
+            # align_corners=None
+        )
         return seg_logits

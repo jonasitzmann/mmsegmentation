@@ -1,4 +1,5 @@
 import os
+import pathlib
 import os.path as osp
 import pandas as pd
 import torch.cuda
@@ -18,14 +19,15 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('--config')
     parser.add_argument('--no_ckpt', action='store_true')
+    parser.add_argument('--prefix', default=None)
     args = parser.parse_args()
-    do_inference(args.config, not args.no_ckpt)
+    do_inference(args.config, not args.no_ckpt, prefix=args.prefix)
 
 
-def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
+def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512), prefix=None):
     debug = (not torch.cuda.is_available()) or (os.environ.get('MACHINE', default='cluster') != 'cluster')
     print(f'{debug=}')
-    repeat_times, n_images_benchmark, n_warmup, n_images_total = (1, 4, 2, 5) if debug else (3, 200, 5, None)
+    repeat_times, n_images_benchmark, n_warmup, n_images_total = (1, 4, 2, 5) if debug else (3, 250, 50, None)
     ckpt = get_checkpoint(config_path) if use_ckpt else None
     register_all_modules()
     cfg = Config.fromfile(config_path)
@@ -34,11 +36,22 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
     cfg['visualizer']['vis_backends'] = [
         dict(
         type='WandbVisBackend',
-        init_kwargs=dict(entity='js0', project='mmseg_inference', reinit=True),
+        init_kwargs=dict(
+            entity='js0',
+            project='mmseg_inference',
+            reinit=True,
+            name=pathlib.Path(config_path).stem,
+            notes=os.environ.get('SLURM_JOB_ID', ''),
+                         ),
         watch_kwargs=dict(log_graph=True, log_freq=1),
     )]
     cfg.work_dir = 'inference_results'
+    save_dir = f'tables/reproduced'
+    if prefix:
+        cfg.work_dir += f'_{prefix}'
+        save_dir += f'_{prefix}'
     cfg.load_from = ckpt
+    cfg.resume = False  # we dont want to continue training, just load the weights
     runner = Runner.from_cfg(cfg)
     runner.model.eval()
     def input_ctor(*args, **kwargs):
@@ -56,6 +69,8 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
     flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False, input_constructor=input_ctor)
     runner = Runner.from_cfg(cfg)
     benchmark_metrics = benchmark(config_path, repeat_times=repeat_times, n_images=n_images_benchmark, n_warmup=n_warmup)
+    print(f'{runner._load_from=}')
+    print(f'{runner._resume=}')
     metrics = runner.test()
     results = dict(
         flops=flops,
@@ -64,7 +79,6 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512)):
         fps_var=benchmark_metrics['fps_variance'],
         mIoU=metrics['mIoU']
     )
-    save_dir = 'tables/reproduced'
     if debug:
         save_dir += '_debug'
     os.makedirs(save_dir, exist_ok=True)

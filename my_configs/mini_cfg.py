@@ -52,3 +52,6 @@ project = 'mmseg'
 custom_hooks = [
     dict(type='MMSegWandbHook')
 ]
+default_hooks = dict(
+    checkpoint=dict(interval=5),
+)

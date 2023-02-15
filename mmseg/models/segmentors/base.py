@@ -90,6 +90,10 @@ class BaseSegmentor(BaseModel, metaclass=ABCMeta):
             - If ``mode="predict"``, return a list of :obj:`DetDataSample`.
             - If ``mode="loss"``, return a dict of tensor.
         """
+        ignore_index = 255 # hard code?
+        for ds in data_samples:
+            gt_data = ds.gt_sem_seg.data
+            gt_data[gt_data >= self.num_classes] = ignore_index
         if mode == 'loss':
             return self.loss(inputs, data_samples)
         elif mode == 'predict':

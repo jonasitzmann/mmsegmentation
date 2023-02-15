@@ -446,5 +446,4 @@ class MixVisionTransformer(BaseModule):
             x = nlc_to_nchw(x, hw_shape)
             if i in self.out_indices:
                 outs.append(x)
-
         return outs

@@ -77,7 +77,10 @@ class EncoderDecoder(BaseSegmentor):
                  test_cfg: OptConfigType = None,
                  data_preprocessor: OptConfigType = None,
                  pretrained: Optional[str] = None,
-                 init_cfg: OptMultiConfig = None):
+                 init_cfg: OptMultiConfig = None,
+                 freeze_except_output_layer=False,
+                 remove_from_state_dict=None,
+                 ):
         super().__init__(
             data_preprocessor=data_preprocessor, init_cfg=init_cfg)
         if pretrained is not None:
@@ -94,6 +97,14 @@ class EncoderDecoder(BaseSegmentor):
         self.test_cfg = test_cfg
 
         assert self.with_decode_head
+        self.freeze_except_output_layer = freeze_except_output_layer
+        if self.freeze_except_output_layer:
+            self.output_layer_name = 'decode_head.' + self.decode_head.output_layer_name
+            for n, p in self.named_parameters():
+                if not n.startswith(self.output_layer_name):
+                    p.requires_grad = False
+                else:
+                    p.requires_grad = True
 
     def _init_decode_head(self, decode_head: ConfigType) -> None:
         """Initialize ``decode_head``"""
@@ -114,7 +125,11 @@ class EncoderDecoder(BaseSegmentor):
 
     def extract_feat(self, inputs: Tensor) -> List[Tensor]:
         """Extract features from images."""
+        backbone_param_sum = sum([p.sum() for p in self.backbone.parameters()])
         x = self.backbone(inputs)
+        # print(f'{sum([el.sum() for el in inputs])=}')
+        # print(f'{backbone_param_sum=}')
+        # print(f'{sum([el.sum() for el in x])=}')
         if self.with_neck:
             x = self.neck(x)
         return x
@@ -126,6 +141,7 @@ class EncoderDecoder(BaseSegmentor):
         x = self.extract_feat(inputs)
         seg_logits = self.decode_head.predict(x, batch_img_metas,
                                               self.test_cfg)
+
 
         return seg_logits
 
@@ -168,6 +184,17 @@ class EncoderDecoder(BaseSegmentor):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
+
+        # if self.freeze_except_output_layer:
+        #     weight_sums = {n: p.sum() for n, p in self.named_parameters()}
+        #     weight_sum_first_n = sum([psum for n, psum in weight_sums.items() if not n.startswith(self.output_layer_name)])
+        #     weight_sum_last = sum([psum for n, psum in weight_sums.items() if n.startswith(self.output_layer_name)])
+        #     print(f'{weight_sum_first_n=}')
+        #     print(f'{weight_sum_last=}')
+        if self.freeze_except_output_layer:
+            self.backbone.eval()
+            self.decode_head.eval()
+            self.decode_head.binary_encoding_conv.requires_grad = True
 
         x = self.extract_feat(inputs)
 

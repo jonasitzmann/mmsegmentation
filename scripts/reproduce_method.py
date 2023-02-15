@@ -11,6 +11,7 @@ def main():
     parser.add_argument('--dataset', default='ADE20K')
     parser.add_argument('--resolution', nargs=2, default=[512, 512])
     parser.add_argument('--only_download', action='store_true')
+    parser.add_argument('--a100', action='store_true')
     parser.add_argument('--submit_slurm_jobs', action='store_true')
     args = parser.parse_args()
     if type(args.resolution) in [list, tuple]:
@@ -21,11 +22,12 @@ def main():
         dataset_name=args.dataset,
         resolution=args.resolution,
         only_download=args.only_download,
-        submit_slurm_jobs=args.submit_slurm_jobs
+        submit_slurm_jobs=args.submit_slurm_jobs,
+        a100=args.a100,
     )
 
 
-def reproduce_method(method, dataset_name, resolution, only_download=False, submit_slurm_jobs=False):
+def reproduce_method(method, dataset_name, resolution, only_download=False, submit_slurm_jobs=False, a100=False):
     input_shape = (3, *eval(resolution))
     df = pd.read_csv(f'tables/from_mmseg/{dataset_name}/{resolution}.csv')
     df = df[df.method==method]
@@ -33,7 +35,10 @@ def reproduce_method(method, dataset_name, resolution, only_download=False, subm
         if only_download:
             get_checkpoint(config_path=config)
         elif submit_slurm_jobs:
-            os.system(f'sbatch scripts/do_inference.sh {config}')
+            if a100:
+                os.system(f'sbatch scripts/do_inference_a100.sh {config}')
+            else:
+                os.system(f'sbatch scripts/do_inference.sh {config}')
         else:
             do_inference(config, input_shape=input_shape)
 

@@ -8,3 +8,4 @@
 
 source activate mmseg
 srun python -u tools/train.py $1
+

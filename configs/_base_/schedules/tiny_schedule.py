@@ -1,6 +1,6 @@
 # optimizer
 max_iters = 1000
-interval = 20
+interval = 1
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='Adam'),
@@ -12,5 +12,5 @@ test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, save_best='mIoU', save_last=True, interval=50),
+    checkpoint=dict(type='CheckpointHook', by_epoch=False, save_best='mIoU', save_last=True, interval=500),
 )
