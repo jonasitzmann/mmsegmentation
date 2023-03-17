@@ -7,3 +7,5 @@ model = dict(data_preprocessor=data_preprocessor, decode_head=dict(
         num_classes=num_classes,
         encode_labels=True
 ))
+resume = False
+train_cfg = dict(val_begin=0)

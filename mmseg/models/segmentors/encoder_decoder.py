@@ -184,18 +184,6 @@ class EncoderDecoder(BaseSegmentor):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-
-        # if self.freeze_except_output_layer:
-        #     weight_sums = {n: p.sum() for n, p in self.named_parameters()}
-        #     weight_sum_first_n = sum([psum for n, psum in weight_sums.items() if not n.startswith(self.output_layer_name)])
-        #     weight_sum_last = sum([psum for n, psum in weight_sums.items() if n.startswith(self.output_layer_name)])
-        #     print(f'{weight_sum_first_n=}')
-        #     print(f'{weight_sum_last=}')
-        if self.freeze_except_output_layer:
-            self.backbone.eval()
-            self.decode_head.eval()
-            self.decode_head.binary_encoding_conv.requires_grad = True
-
         x = self.extract_feat(inputs)
 
         losses = dict()

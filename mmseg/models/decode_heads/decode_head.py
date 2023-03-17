@@ -115,8 +115,8 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         super().__init__(init_cfg)
         self._init_inputs(in_channels, in_index, input_transform)
         self.encode_labels = encode_labels
+        self.num_classes = num_classes
         if self.encode_labels:
-            self.num_classes_decoded = num_classes
             if map_to_n_bits is None:
                 num_classes = int(np.ceil(np.log2(num_classes)))
                 out_channels = num_classes
@@ -125,7 +125,6 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             self.gt_key = 'gt_encoded'
         else:
             self.gt_key = 'gt_sem_seg'
-        self.num_classes = num_classes
 
         self.channels = channels
         self.dropout_ratio = dropout_ratio
@@ -157,7 +156,6 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             threshold = 0.3
             warnings.warn('threshold is not defined for binary, and defaults'
                           'to 0.3')
-        self.num_classes = num_classes
         self.out_channels = out_channels
         self.threshold = threshold
 
@@ -323,7 +321,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         """
         seg_logits = self.forward(inputs)
         if self.encode_labels:
-            seg_logits_decoded = decode_logits(seg_logits, self.num_classes_decoded)
+            seg_logits_decoded = decode_logits(seg_logits, self.num_classes)
             return self.predict_by_feat(seg_logits_decoded, batch_img_metas)
         return self.predict_by_feat(seg_logits, batch_img_metas)
 
@@ -391,7 +389,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
 
         if self.encode_labels:
             loss['acc_bit'] = ((seg_logits > 0) == seg_label).sum() / seg_logits.numel()
-            seg_logits_decoded = decode_logits(seg_logits, self.num_classes_decoded)
+            seg_logits_decoded = decode_logits(seg_logits, self.num_classes)
             loss['ce_decoded'] = cross_entropy(seg_logits_decoded, seg_label_decoded, ignore_index=self.ignore_index)
         #     valid_idxs = seg_weight[:, 0, :, :].nonzero()
         #     # seen_labels = []
