@@ -145,6 +145,7 @@ class IoUMetric(BaseMetric):
             torch.Tensor: The prediction histogram on all classes.
             torch.Tensor: The ground truth histogram on all classes.
         """
+
         mask = (label != ignore_index)
         pred_label = pred_label[mask]
         label = label[mask]
