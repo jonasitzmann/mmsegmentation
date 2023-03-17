@@ -1,11 +1,8 @@
 import os.path
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-import seaborn as sns
 import pandas as pd
 from dotdict import dotdict
 from glob import glob
-import numpy as np
 
 
 def main():

@@ -1,11 +1,28 @@
 import pandas as pd
 import os
-from my_utils.fix_wget import fix_wget
 import wget
-fix_wget()
+
+
+def detect_filename(url=None, out=None, headers=None, default="download.wget"):
+    """Return filename for saving file. If no filename is detected from output
+    argument, url or headers, return default (download.wget)
+    """
+    name = default
+    if out:
+        name = out
+    elif url:
+        name = wget.filename_from_url(url)
+    elif headers:
+        name = wget.filename_from_headers(headers)
+    return name
+
+
+def fix_wget():
+    wget.detect_filename = detect_filename
 
 
 def get_checkpoint(config_path):
+    fix_wget()
     ckpt_file = config_path.replace('configs/', 'downloaded_ckpts/') + '.pth'
     if not os.path.exists(ckpt_file):
         os.makedirs(os.path.dirname(ckpt_file), exist_ok=True)

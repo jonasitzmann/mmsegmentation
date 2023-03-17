@@ -13,13 +13,14 @@ from mmseg.utils import register_all_modules
 from scripts.get_checkpoint import get_checkpoint
 from argparse import ArgumentParser
 from mmcv.transforms import CenterCrop
+from get_flops_segformer import get_additional_segformer_flops
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--config')
-    parser.add_argument('--no_ckpt', action='store_true')
-    parser.add_argument('--prefix', default=None)
+    parser.add_argument('--config', help='path to the configuration yaml file as in tables/from_mmseg/all.csv')
+    parser.add_argument('--no_ckpt', action='store_true', help='do not initialize weights from checkpoint')
+    parser.add_argument('--prefix', default=None, help='prefix to indicate the hardware used')
     args = parser.parse_args()
     do_inference(args.config, not args.no_ckpt, prefix=args.prefix)
 
@@ -66,11 +67,13 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512), prefix=N
         return batch
 
     runner.test_dataloader.dataset.pipeline.transforms.insert(2, CenterCrop(crop_size=(512, 512)))
+
     flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False, input_constructor=input_ctor)
+    if 'segformer' in config_path:
+        atn_flops = sum(get_additional_segformer_flops(runner.model, input_shape))
+        flops += atn_flops
     runner = Runner.from_cfg(cfg)
     benchmark_metrics = benchmark(config_path, repeat_times=repeat_times, n_images=n_images_benchmark, n_warmup=n_warmup)
-    print(f'{runner._load_from=}')
-    print(f'{runner._resume=}')
     metrics = runner.test()
     results = dict(
         flops=flops,
@@ -85,7 +88,6 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512), prefix=N
     df = pd.DataFrame([results])
     filename = f'{save_dir}/{osp.basename(config_path)}.csv'
     df.to_csv(filename, index=False)
-    print(f'{filename=}')
 
 
 if __name__ == '__main__':
