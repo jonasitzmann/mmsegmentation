@@ -13,8 +13,8 @@ def main():
     df = pd.read_csv(f'{csv_dir}/{dataset_name}/{resolution}.csv')
     df['config_name'] = df.config.apply(lambda x: os.path.basename(x) if x and isinstance(x, str) else x)
     df = find_best_methods(df)
-    # a100 = False
-    a100 = True
+    a100 = False
+    # a100 = True
     if a100:
         gpu = 'a100'
         df_reproduced = read_reproduced_results(suffix='_a100')
@@ -49,12 +49,12 @@ def plot_miou_over_fps(df_mmseg, plot_name):
         is_reproduced = 'fps_reproduced' in sub_df.columns and len(sub_df.fps_reproduced.dropna()) > 0
         is_reported = 'fps' in sub_df.columns and len(sub_df.fps.dropna()) > 0
         is_intesting = any([
-            method in '''
-                segformer
-                segnext
-            '''.split(),
+            # method in '''
+            #     segformer
+            #     segnext
+            # '''.split(),
             # any(sub_df.is_best),
-            # is_reproduced,
+            is_reproduced,
         ])
 
 

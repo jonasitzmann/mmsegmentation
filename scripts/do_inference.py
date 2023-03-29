@@ -68,7 +68,9 @@ def do_inference(config_path, use_ckpt=True, input_shape=(3, 512, 512), prefix=N
 
     runner.test_dataloader.dataset.pipeline.transforms.insert(2, CenterCrop(crop_size=(512, 512)))
 
-    flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False, input_constructor=input_ctor)
+    flops, params = get_model_complexity_info(runner.model, input_shape, as_strings=False,
+                                              input_constructor=input_ctor # needed?
+                                              )
     if 'segformer' in config_path:
         atn_flops = sum(get_additional_segformer_flops(runner.model, input_shape))
         flops += atn_flops
